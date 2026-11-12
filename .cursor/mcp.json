@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "assessor-financeiro": {
+      "command": "C:\\Users\\gustavomunhoz-ieg\\OneDrive - Instituto J&F\\Área de Trabalho\\PROVAIA\\assessor\\.venv\\Scripts\\python.exe",
+      "args": [
+        "C:\\Users\\gustavomunhoz-ieg\\OneDrive - Instituto J&F\\Área de Trabalho\\PROVAIA\\assessor\\app\\mcp_server.py"
+      ]
+    }
+  }
+}
