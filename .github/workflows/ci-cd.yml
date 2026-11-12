@@ -19,6 +19,16 @@ jobs:
     name: CI - Validacao, Lint & Testes Automatizados
     runs-on: ubuntu-latest
 
+    # Variaveis dummy para a suite de testes e analise de importacao rodar sem secrets no CI
+    env:
+      GEMINI_API_KEY: mock-ci-gemini-key
+      GROQ_API_KEY: mock-ci-groq-key
+      DATABASE_URL: postgres://user:pass@localhost:5432/mockdb
+      MONGODB_URI: mongodb://user:pass@localhost:27017/
+      QDRANT_URL: https://mock-qdrant.io
+      QDRANT_API_KEY: mock-ci-qdrant-key
+      FAQ_PDF_PATH: data/FAQ_assessor_v1.1.pdf
+
     steps:
       - name: 1. Checkout do Repositorio
         uses: actions/checkout@v4
@@ -36,7 +46,7 @@ jobs:
 
       - name: 4. Verificacao de Sintaxe e Compilacao dos Modulos
         run: |
-          python -m py_compile $(find app -name "*.py")
+          python -m compileall app/
           python -c "import app.main; print('App module successfully loaded!')"
 
       - name: 5. Analise Estatica (Flake8 / Lint)

@@ -24,13 +24,14 @@ A persistência do sistema é híbrida, integrando:
 ### Integração Contínua (CI)
 * **Gatilhos**: Executado a cada `push` na branch `main` e em qualquer `pull_request` direcionado para `main`.
 * **Ambiente**: Runner `ubuntu-latest` configurado com runtime **Python 3.12**.
+* **Variáveis de Ambiente (CI Mocks)**: Configuração de chaves fictícias no escopo do job de CI para possibilitar o carregamento estático e a execução segura dos testes sem expor segredos nem falhar por ausência de credenciais no runner limpo.
 * **Etapas**:
   1. **Checkout**: Clonagem do código-fonte via `actions/checkout@v4`.
   2. **Configuração de Ambiente**: Setup do Python com cache de dependências do `pip` (`actions/setup-python@v5`).
   3. **Instalação**: Instalação das bibliotecas e requisitos (`pip install -r requirements.txt`).
-  4. **Compilação e Verificação Estática**: Execução de `python -m py_compile` em todos os módulos Python do diretório `app/` para garantir ausência de erros de sintaxe ou referências corrompidas.
+  4. **Compilação e Verificação Estática**: Execução de `python -m compileall app/` e verificação de importação do módulo central `app.main` para garantir ausência de erros de sintaxe ou referências corrompidas.
   5. **Análise de Código (Linting)**: Execução de `flake8` focado na detecção de erros críticos (erros de sintaxe `E9` e variáveis indefinidas `F82`).
-  6. **Testes Automatizados**: Execução de suíte de testes com isolamento de dependências e mocks, cobrindo validação de esquemas Pydantic (`ChatRequest`, `ChatResponse`), rotas do FastAPI (`/health`) e a lógica central de escrita diferida (*Unit of Work*) do `TurnoEscrita`.
+  6. **Testes Automatizados**: Execução de suíte de testes com isolamento de dependências e mocks (`pytest`), cobrindo validação de esquemas Pydantic (`ChatRequest`, `ChatResponse`), rotas do FastAPI (`/health`) e a lógica central de escrita diferida (*Unit of Work*) do `TurnoEscrita`.
 
 ### Entrega e Deployment Contínuo (CD)
 * **Gatilhos**: Disparado **estritamente após a conclusão com sucesso de todos os passos de CI** (`needs: ci`) e apenas em eventos de `push` na branch `main`.
@@ -70,6 +71,16 @@ jobs:
     name: CI - Validacao, Lint & Testes Automatizados
     runs-on: ubuntu-latest
 
+    # Variaveis dummy para a suite de testes e analise de importacao rodar sem secrets no CI
+    env:
+      GEMINI_API_KEY: mock-ci-gemini-key
+      GROQ_API_KEY: mock-ci-groq-key
+      DATABASE_URL: postgres://user:pass@localhost:5432/mockdb
+      MONGODB_URI: mongodb://user:pass@localhost:27017/
+      QDRANT_URL: https://mock-qdrant.io
+      QDRANT_API_KEY: mock-ci-qdrant-key
+      FAQ_PDF_PATH: data/FAQ_assessor_v1.1.pdf
+
     steps:
       - name: 1. Checkout do Repositorio
         uses: actions/checkout@v4
@@ -87,7 +98,7 @@ jobs:
 
       - name: 4. Verificacao de Sintaxe e Compilacao dos Modulos
         run: |
-          python -m py_compile $(find app -name "*.py")
+          python -m compileall app/
           python -c "import app.main; print('App module successfully loaded!')"
 
       - name: 5. Analise Estatica (Flake8 / Lint)
@@ -165,33 +176,36 @@ Durante o ciclo de engenharia do pipeline, foram realizadas interações direcio
 | **2** | *"O que eu preciso fazer? Você consegue fazer tudo sozinho? Quero a explicação completa"* | Mapeamento das opções de deployment para FastAPI (Render vs Docker/GHCR). | A sugestão inicial de hospedar no Render exigiria cadastro manual externo e chaves de banco de produção. | Analisadas as alternativas do enunciado e selecionado o GitHub Container Registry como solução completa e autônoma. |
 | **3** | *"Mas eu preciso rodar no Render? Não pode ser só o link do repositório? Porque o Render só vai subir o front, mas não vai funcionar efetivamente porque a API não vai estar rodando, não é??"* | Validação técnica da crítica do desenvolvedor e confirmação do modelo em Docker. | Constatou-se que tentar rodar a API completa no Render sem os 3 bancos configurados resultaria em falhas de timeout e exposição de segredos. | Adoção formal da estratégia de container Docker (`ghcr.io`) conforme previsto explicitamente no enunciado da atividade. |
 | **4** | *"Pode implementar sim"* | Criação dos arquivos `Dockerfile`, `.dockerignore`, `tests/test_basic.py` e `.github/workflows/ci-cd.yml`. | Divergência de atributos no teste do `TurnoEscrita` e routers do FastAPI durante a validação local. | Ajustados os testes para refletir exatamente os métodos `abrir_turno_escrita` e `confirmar_escritas` de `app/juiz.py`. |
+| **5** | *(Envio do log de erro do GitHub Actions: `ValidationError: API key required for Gemini Developer API`)* | Diagnóstico do erro de inicialização imediata do módulo `app/llms.py` no runner do GitHub Actions. | Como o `.env` é ignorado no repositório por segurança, o runner do GitHub executava `import app.main` com chaves nulas, disparando validação do Pydantic no LangChain. | Inserção de variáveis de ambiente simuladas (`env`) no escopo do job `ci` no workflow e adoção de `python -m compileall app/`. |
 
 ---
 
 ## 5. Respostas às Questões Conclusivas
 
 ### 1. Quantos prompts foram necessários para chegar à versão final?
-Foram necessários **4 prompts** principais com a IA para:
+Foram necessários **5 prompts** com a IA:
 1. Elaboração do plano técnico de arquitetura;
 2. Esclarecimento sobre o papel do desenvolvedor e escopo das ferramentas;
 3. Refinamento crítico da estratégia de deploy (substituição do Render pelo GitHub Container Registry);
-4. Instrução de implementação e consolidação dos artefatos.
+4. Instrução de implementação inicial dos artefatos;
+5. Análise do log de erro do runner do GitHub Actions e correção das variáveis de ambiente de teste.
 
 ### 2. Quais foram os principais problemas encontrados?
 * **Ausência de suíte de testes prévia**: O projeto continha apenas código de aplicação e não possuía rotinas de teste para alimentar o step de testes do CI.
 * **Complexidade de credenciais no deploy remoto**: A aplicação depende de 3 bancos (PostgreSQL, MongoDB Atlas e Qdrant) e chaves de IA (Gemini e Groq). Um deploy em PaaS convencional falharia sem a sincronização manual de todas as variáveis de ambiente.
-* **Ajuste de contratos de teste**: A primeira versão do teste unitário tentou instanciar contratos fictícios de uma versão anterior do `TurnoEscrita`, necessitando alinhamento com a implementação real de `app/juiz.py`.
+* **Instanciação estática de clientes de IA sem `.env` no CI**: Ao compilar e importar `app.main`, a biblioteca `langchain_google_genai` exigiu a presença da chave da API Gemini já no momento da carga do módulo `app/llms.py`. Como o repositório não sobe o `.env` por segurança, o runner disparou `ValidationError`.
 
 ### 3. Quais alterações foram necessárias?
 * Adição de pacotes de qualidade no `requirements.txt` (`pytest`, `pytest-mock`, `httpx`, `flake8`).
 * Criação de um `Dockerfile` otimizado em múltiplas camadas baseado em `python:3.12-slim`.
 * Criação do `.dockerignore` para impedir o empacotamento de segredos (`.env`), ambientes virtuais e caches.
 * Desenvolvimento de testes automatizados modulares com variáveis de ambiente mockadas em `tests/test_basic.py`.
-* Criação do fluxo `.github/workflows/ci-cd.yml` separando explicitamente os jobs de CI e CD.
+* Inclusão do bloco `env` no job `ci` do `.github/workflows/ci-cd.yml` com variáveis de mock seguras para testes automatizados.
 
 ### 4. Quais alterações foram realizadas manualmente?
 * A definição do repositório no GitHub (`https://github.com/Gustavo7Munhoz/assessor`) e a sincronização inicial da licença.
 * A análise crítica pelo desenvolvedor quanto à inviabilidade de deploy no Render sem credenciais de banco, orientando a IA para a solução via Docker.
+* A inspeção e cópia do log do GitHub Actions para fornecimento à IA no ajuste do erro de compilação.
 * A coleta e inserção das evidências gráficas da execução da pipeline no GitHub Actions.
 
 ### 5. Como você verificou que a pipeline estava funcionando corretamente?
