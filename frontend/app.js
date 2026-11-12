@@ -1,8 +1,8 @@
+﻿// ============================================================
+// ConfiguraÃ§Ã£o
 // ============================================================
-// Configuração
-// ============================================================
-// Ajuste para a URL onde o FastAPI está rodando.
-const API_BASE = "http://localhost:8000";
+// Ajuste para a URL onde o FastAPI estÃ¡ rodando.
+const API_BASE = window.location.protocol === "file:" ? "http://localhost:8000" : window.location.origin;
 const CHAT_ENDPOINT = `${API_BASE}/chat`;
 
 // ============================================================
@@ -19,7 +19,7 @@ const statusDot = document.getElementById("status-dot");
 const hint = document.getElementById("hint");
 
 // ============================================================
-// Sessão
+// SessÃ£o
 // ============================================================
 const SESSION_STORAGE_KEY = "assistente_session_id";
 const USER_STORAGE_KEY = "assistente_user_id";
@@ -42,7 +42,7 @@ function obterOuCriarSessionId() {
 
 async function iniciarNovaSessao() {
   resetButton.disabled = true;
-  setHint("Encerrando a sessão anterior…");
+  setHint("Encerrando a sessÃ£o anteriorâ€¦");
   let resumo = null;
   try {
     const resposta = await fetch(
@@ -52,7 +52,7 @@ async function iniciarNovaSessao() {
     if (!resposta.ok) throw new Error(`status ${resposta.status}`);
     resumo = (await resposta.json()).resumo;
   } catch (erro) {
-    setHint(`Não foi possível encerrar a sessão: ${erro.message}`, true);
+    setHint(`NÃ£o foi possÃ­vel encerrar a sessÃ£o: ${erro.message}`, true);
     resetButton.disabled = false;
     return;
   }
@@ -63,12 +63,12 @@ async function iniciarNovaSessao() {
   thread.innerHTML = "";
   thread.appendChild(threadEmpty);
   threadEmpty.style.display = "block";
-  setHint(resumo ? `Sessão anterior: ${resumo}` : "Nova sessão iniciada.");
+  setHint(resumo ? `SessÃ£o anterior: ${resumo}` : "Nova sessÃ£o iniciada.");
   resetButton.disabled = false;
 }
 
 function exibirSessionId(id) {
-  sessionIdEl.textContent = id.length > 12 ? id.slice(0, 8) + "…" : id;
+  sessionIdEl.textContent = id.length > 12 ? id.slice(0, 8) + "â€¦" : id;
   sessionIdEl.title = id;
 }
 
@@ -112,7 +112,7 @@ function adicionarMensagem({ tipo, texto, agentes }) {
 
   const label = document.createElement("div");
   label.className = "message__label";
-  label.textContent = tipo === "user" ? "você" : tipo === "error" ? "erro" : "assistente";
+  label.textContent = tipo === "user" ? "vocÃª" : tipo === "error" ? "erro" : "assistente";
   wrapper.appendChild(label);
 
   const bubble = document.createElement("div");
@@ -227,7 +227,7 @@ composer.addEventListener("submit", async (evento) => {
     adicionarMensagem({
       tipo: "error",
       texto: erro.message.includes("Failed to fetch")
-        ? `Não foi possível falar com a API em ${API_BASE}. Verifique se o servidor está rodando e se o CORS está liberado.`
+        ? `NÃ£o foi possÃ­vel falar com a API em ${API_BASE}. Verifique se o servidor estÃ¡ rodando e se o CORS estÃ¡ liberado.`
         : erro.message,
     });
     setHint(erro.message, true);
